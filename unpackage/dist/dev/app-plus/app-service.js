@@ -643,17 +643,73 @@ if (uni.restoreGlobal) {
       },
       // 选择音频文件
       chooseAudioFile() {
-        uni.chooseFile({
-          count: 1,
-          type: "all",
-          extension: [".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac", ".wma"],
-          success: (res) => {
-            this.handleFileSelection(res.tempFiles[0]);
-          },
-          fail: (err) => {
-            showErrorMessage("选择音频文件失败，请重试");
-          }
-        });
+        if (uni.chooseMessageFile) {
+          uni.chooseMessageFile({
+            count: 1,
+            type: "file",
+            extension: ["mp3", "wav", "m4a", "ogg", "flac", "aac", "wma", "mp4", "avi", "mov", "wmv", "flv", "mkv", "webm", "mpeg", "mpga"],
+            success: (res) => {
+              if (res.tempFiles && res.tempFiles.length > 0) {
+                this.handleFileSelection(res.tempFiles[0]);
+              } else {
+                showErrorMessage("未选择文件");
+              }
+            },
+            fail: (err) => {
+              formatAppLog("log", "at pages/index/index.vue:117", "chooseMessageFile failed:", err);
+              this.chooseAudioFileBackup();
+            }
+          });
+        } else {
+          this.chooseAudioFileBackup();
+        }
+      },
+      // 音频文件选择备用方案
+      chooseAudioFileBackup() {
+        if (uni.chooseFile) {
+          uni.chooseFile({
+            count: 1,
+            type: "all",
+            extension: [".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac", ".wma", ".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm", ".mpeg", ".mpga"],
+            success: (res) => {
+              if (res.tempFiles && res.tempFiles.length > 0) {
+                this.handleFileSelection(res.tempFiles[0]);
+              } else {
+                showErrorMessage("未选择文件");
+              }
+            },
+            fail: (err) => {
+              formatAppLog("log", "at pages/index/index.vue:144", "chooseFile failed:", err);
+              this.chooseDocumentFile();
+            }
+          });
+        } else {
+          this.chooseDocumentFile();
+        }
+      },
+      // 文档选择器（最后的降级方案）
+      chooseDocumentFile() {
+        if (typeof plus !== "undefined" && plus.io) {
+          plus.io.resolveLocalFileSystemURL("_doc/", (entry) => {
+            plus.nativeUI.actionSheet({
+              title: "选择文件来源",
+              cancel: "取消",
+              buttons: [{ title: "从文件管理器选择" }]
+            }, (e2) => {
+              if (e2.index === 1) {
+                plus.runtime.openURL("content://com.android.externalstorage.documents/root/primary");
+              }
+            });
+          }, (err) => {
+            showErrorMessage("无法访问文件系统");
+          });
+        } else {
+          uni.showModal({
+            title: "文件选择不可用",
+            content: "当前系统不支持文件选择功能，请尝试选择视频文件或联系开发者",
+            showCancel: false
+          });
+        }
       },
       // 处理文件选择结果
       handleFileSelection(file) {

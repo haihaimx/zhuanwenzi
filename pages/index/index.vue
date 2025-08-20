@@ -100,17 +100,85 @@ export default {
 		
 		// 选择音频文件
 		chooseAudioFile() {
-			uni.chooseFile({
-				count: 1,
-				type: 'all',
-				extension: ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac', '.wma'],
-				success: (res) => {
-					this.handleFileSelection(res.tempFiles[0])
-				},
-				fail: (err) => {
-					showErrorMessage('选择音频文件失败，请重试')
-				}
-			})
+			// 优先使用 chooseMessageFile，适配最新Android系统
+			if (uni.chooseMessageFile) {
+				uni.chooseMessageFile({
+					count: 1,
+					type: 'file',
+					extension: ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'aac', 'wma', 'mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm', 'mpeg', 'mpga'],
+					success: (res) => {
+						if (res.tempFiles && res.tempFiles.length > 0) {
+							this.handleFileSelection(res.tempFiles[0])
+						} else {
+							showErrorMessage('未选择文件')
+						}
+					},
+					fail: (err) => {
+						console.log('chooseMessageFile failed:', err)
+						// 降级到 chooseFile
+						this.chooseAudioFileBackup()
+					}
+				})
+			} else {
+				// 降级方案
+				this.chooseAudioFileBackup()
+			}
+		},
+		
+		// 音频文件选择备用方案
+		chooseAudioFileBackup() {
+			// 使用传统的 chooseFile API
+			if (uni.chooseFile) {
+				uni.chooseFile({
+					count: 1,
+					type: 'all',
+					extension: ['.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac', '.wma', '.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv', '.webm', '.mpeg', '.mpga'],
+					success: (res) => {
+						if (res.tempFiles && res.tempFiles.length > 0) {
+							this.handleFileSelection(res.tempFiles[0])
+						} else {
+							showErrorMessage('未选择文件')
+						}
+					},
+					fail: (err) => {
+						console.log('chooseFile failed:', err)
+						// 最后的降级方案：使用文档选择器
+						this.chooseDocumentFile()
+					}
+				})
+			} else {
+				// 最后的降级方案
+				this.chooseDocumentFile()
+			}
+		},
+		
+		// 文档选择器（最后的降级方案）
+		chooseDocumentFile() {
+			// 使用 plus.io 原生文件选择（仅在 App 环境下可用）
+			if (typeof plus !== 'undefined' && plus.io) {
+				plus.io.resolveLocalFileSystemURL('_doc/', (entry) => {
+					// 调用原生文件选择器
+					plus.nativeUI.actionSheet({
+						title: '选择文件来源',
+						cancel: '取消',
+						buttons: [{ title: '从文件管理器选择' }]
+					}, (e) => {
+						if (e.index === 1) {
+							// 打开系统文件选择器
+							plus.runtime.openURL('content://com.android.externalstorage.documents/root/primary')
+						}
+					})
+				}, (err) => {
+					showErrorMessage('无法访问文件系统')
+				})
+			} else {
+				// 提示用户手动操作
+				uni.showModal({
+					title: '文件选择不可用',
+					content: '当前系统不支持文件选择功能，请尝试选择视频文件或联系开发者',
+					showCancel: false
+				})
+			}
 		},
 		
 		// 处理文件选择结果
